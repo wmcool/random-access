@@ -14,4 +14,12 @@ std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c);
 
 double** estimate_correlation_matrix(const std::vector<std::vector<bool>>& chunks);
 
+double* get_mean_correlation(double** correlation_matrix, int n);
+
+void sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array);
+
+int compute_deviation_bits_num(std::vector<std::vector<bool>>& chunks);
+
+
+
 #endif //RANDOM_ACCESS_PREPROCESS_H

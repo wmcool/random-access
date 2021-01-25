@@ -9,6 +9,7 @@
 #include <vector>
 #include "RabinHash.h"
 #include <cmath>
+#include <iostream>
 
 int compute_sample_num(std::ifstream& in, int ns, double d) {
     int c = 0;
@@ -27,8 +28,8 @@ int compute_sample_num(std::ifstream& in, int ns, double d) {
         int num_bytes = c*ns/8;
         std::vector<char> cur_chunk(num_bytes, '0');
         for(int i=0;i<Nc;i++) {
-            in.read(cur_chunk.data(), cur_chunk.size());
-            dic.insert(rh(cur_chunk.data()));
+            in.read(cur_chunk.data(), num_bytes);
+            dic.insert(rh(cur_chunk.data(), num_bytes));
             if(size - in.tellg() < num_bytes) break;
         }
         if(size != in.tellg()) {
@@ -90,13 +91,94 @@ double** estimate_correlation_matrix(const std::vector<std::vector<bool>>& chunk
         matrix[i] = new double[n];
     }
     for(int i=0;i<n;i++) {
-        matrix[i][i] = 0;
+        matrix[i][i] = 1;
         for(int j=i+1;j<n;j++) {
             matrix[i][j] = estimate_correlation(chunks, i, j);
             matrix[j][i] = matrix[i][j];
         }
     }
     return matrix;
+}
+
+double* get_mean_correlation(double** correlation_matrix, int n) {
+    double* correlation_array = new double[n];
+    for(int i=0;i<n;i++) {
+        double sum = 0;
+        for(int j=0;j<n;j++) {
+            sum += std::abs(correlation_matrix[i][j]);
+        }
+        correlation_array[i] = sum / n;
+    }
+    return correlation_array;
+}
+
+void swap(std::vector<bool>& chunk, int i, int j) {
+    bool temp = chunk[i];
+    chunk[i] = chunk[j];
+    chunk[j] = temp;
+}
+
+void swap(double* array, int i, int j) {
+    double temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+}
+
+void sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array) {
+    int n = chunks[0].size();
+    int c = chunks.size();
+    for(int i=0;i<n-1;i++) {
+        for(int j=n-1;j>i;j--) {
+            if(correlation_array[j] > correlation_array[j-1]) {
+                swap(correlation_array, j, j-1);
+                for(int k=0;k<c;k++) {
+                    swap(chunks[k], j, j-1);
+                }
+            }
+        }
+    }
+}
+
+int compute_unique_chunks_num(std::vector<std::vector<bool>>& chunks) {
+    std::unordered_set<int> dic;
+    int c = chunks.size();
+    int n = chunks[0].size();
+    RabinHash rh;
+    for(int i=0;i<c;i++) {
+        int j = 0;
+        std::vector<char> cur;
+        while(j < n) {
+            std::uint8_t byte = 0;
+            for(int k=0;k<8;k++,j++) {
+                byte <<= 1;
+                byte = byte | chunks[i][j];
+            }
+            cur.push_back(byte);
+        }
+        dic.insert(rh(cur.data(), n/8));
+    }
+    return dic.size();
+}
+
+int compute_deviation_bits_num(std::vector<std::vector<bool>>& chunks) {
+    int c = chunks.size();
+    int n = chunks[0].size();
+    int base = n;
+    double S_k;
+    double pre_S_k;
+    while(base >= 0) {
+        int K = compute_unique_chunks_num(chunks);
+        S_k = K * base + c * (std::ceil(std::log2(K)) + (n - base));
+        std::cout << "base = " << base <<": " << S_k << std::endl;
+//        if(base != n && S_k > pre_S_k) return n - base;
+        pre_S_k = S_k;
+        base--;
+        if(base >= 0) {
+            for(int i=0;i<c;i++) {
+                chunks[i][base] = (int)0;
+            }
+        }
+    }
 }
 
 
