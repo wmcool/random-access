@@ -8,8 +8,11 @@
 #include <string>
 #include <vector>
 #include "RabinHash.h"
-#include <cmath>
 #include <iostream>
+#include "preprocess.h"
+#include <algorithm>
+
+using namespace std;
 
 int compute_sample_num(std::ifstream& in, int ns, double d) {
     int c = 0;
@@ -124,19 +127,31 @@ void swap(double* array, int i, int j) {
     array[j] = temp;
 }
 
-void sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array) {
+void swap(int* array, int i, int j) {
+    int temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+}
+
+int* sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array) {
     int n = chunks[0].size();
     int c = chunks.size();
+    int* index = new int[n];
+    for(int i=0;i<n;i++) {
+        index[i] = i;
+    }
     for(int i=0;i<n-1;i++) {
         for(int j=n-1;j>i;j--) {
             if(correlation_array[j] > correlation_array[j-1]) {
                 swap(correlation_array, j, j-1);
+                swap(index, j, j-1);
                 for(int k=0;k<c;k++) {
                     swap(chunks[k], j, j-1);
                 }
             }
         }
     }
+    return index;
 }
 
 int compute_unique_chunks_num(std::vector<std::vector<bool>>& chunks) {
@@ -169,8 +184,8 @@ int compute_deviation_bits_num(std::vector<std::vector<bool>>& chunks) {
     while(base >= 0) {
         int K = compute_unique_chunks_num(chunks);
         S_k = K * base + c * (std::ceil(std::log2(K)) + (n - base));
-        std::cout << "base = " << base <<": " << S_k << std::endl;
-//        if(base != n && S_k > pre_S_k) return n - base;
+//        std::cout << "base = " << base <<": " << S_k << std::endl;
+        if(base != n && S_k - pre_S_k > (pre_S_k / 100)) return n - base - 1;
         pre_S_k = S_k;
         base--;
         if(base >= 0) {
@@ -180,6 +195,67 @@ int compute_deviation_bits_num(std::vector<std::vector<bool>>& chunks) {
         }
     }
 }
+
+bool comp(int a, int b) {
+    return a > b;
+}
+
+std::vector<int> compute_move_index_set(const int* indexs, int deviation, int n) {
+    std::vector<int> original_index;
+    for(int i=n-deviation;i<n;i++) {
+        original_index.push_back(indexs[i]);
+    }
+    std::sort(original_index.begin(), original_index.end(), comp);
+    return original_index;
+}
+
+//int main() {
+////    convert_binary("TX_SOUID100434_valid.txt", "TX_SOUID100434");
+////    convert_binary("test.txt", "test");
+//    ifstream in("test", ios::in | ios::binary);
+//    int c = compute_sample_num(in, 32, 0.01);
+//    cout << "c: " << c << endl;
+//    vector<vector<bool>> chunks = extract_chunks(in, 32, c);
+//    for(int i=0;i<chunks.size();i++) {
+//        cout << "chunks " << i << ": ";
+//        for(int j=0;j<chunks[i].size();j++) {
+//            cout << (int)chunks[i][j] << " ";
+//        }
+//        cout << endl;
+//    }
+//    double** correlation_matrix = estimate_correlation_matrix(chunks);
+////    for(int i=0;i<chunks[0].size();i++) {
+////        cout << "bit " << i << ":";
+////        for(int j=0;j<chunks[0].size();j++) {
+////            cout << correlation_matrix[i][j] << " ";
+////        }
+////        cout << endl;
+////    }
+//    double* correlation_array = get_mean_correlation(correlation_matrix, chunks[0].size());
+//    for(int i=0;i<chunks[0].size();i++) {
+//        cout<< correlation_array[i] << " ";
+//    }
+//    cout << endl;
+//    cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << endl;
+//    int* indexs = sort_bits_of_chunks(chunks, correlation_array);
+//    cout << "after sort: " << endl;
+//    for(int i=0;i<chunks.size();i++) {
+//        cout << "chunks " << i << ": ";
+//        for(int j=0;j<chunks[i].size();j++) {
+//            cout << (int)chunks[i][j] << " ";
+//        }
+//        cout << endl;
+//    }
+//    cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << endl;
+//    int k = compute_deviation_bits_num(chunks);
+//    cout << "deviation bits num: " << k << endl;
+//    vector<int> original_index = compute_move_index_set(indexs, k, chunks[0].size());
+//    cout << "deviation index: ";
+//    for(int i=0;i<original_index.size();i++) {
+//        cout << original_index[i] << " ";
+//    }
+//    return 0;
+//}
 
 
 

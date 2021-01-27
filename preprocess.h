@@ -16,9 +16,11 @@ double** estimate_correlation_matrix(const std::vector<std::vector<bool>>& chunk
 
 double* get_mean_correlation(double** correlation_matrix, int n);
 
-void sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array);
+int* sort_bits_of_chunks(std::vector<std::vector<bool>>& chunks, double* correlation_array);
 
 int compute_deviation_bits_num(std::vector<std::vector<bool>>& chunks);
+
+std::vector<int> compute_move_index_set(const int* indexs, int deviation, int n);
 
 
 
