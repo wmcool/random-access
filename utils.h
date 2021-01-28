@@ -11,6 +11,12 @@ void convert_binary(const std::string& input, const std::string& output);
 
 void write_binary(std::ofstream& out, std::vector<bool> binary);
 
+std::vector<bool> read_binary(std::ifstream& in, int length);
+
 std::vector<bool> int_to_binary(int x, int length);
+
+int binary_to_int(std::vector<bool> binary);
+
+int read_elias_gamma(std::ifstream& in);
 
 #endif //RANDOM_ACCESS_UTILS_H

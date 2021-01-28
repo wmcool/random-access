@@ -44,12 +44,13 @@ int compute_sample_num(std::ifstream& in, int ns, double d) {
     return c;
 }
 
-std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c) {
+std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c, int& tail) {
     in.seekg(0, std::ios::end);
     int size = in.tellg();
     in.seekg(0, std::ios::beg);
     int num_bytes = ns*c/8;
     std::vector<std::vector<bool>> res;
+    bool set_flag = false;
     while(in.tellg() != size) {
         std::vector<bool> cur_chunk;
         std::uint8_t byte;
@@ -60,6 +61,10 @@ std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c) 
                     cur_chunk.push_back((byte >> j) & 1);
                 }
             }else {
+                if(!set_flag) {
+                    tail = num_bytes - i;
+                    set_flag = true;
+                }
                 for(int j=7;j>=0;j--) {
                     cur_chunk.push_back(0);
                 }

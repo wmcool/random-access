@@ -15,6 +15,16 @@ void permute(std::vector<bool>& chunk, std::vector<int> I) {
     }
 }
 
+void unpermute(std::vector<bool>& chunk, std::vector<int> I) {
+    int n = I.size();
+    int m = chunk.size();
+    for(int i=n-1;i>=0;i--) {
+        bool tmp = chunk[m-1];
+        chunk.erase(chunk.begin() + m-1);
+        chunk.insert(chunk.begin() + I[i], tmp);
+    }
+}
+
 int rabin_hash(std::vector<bool>& base) {
     RabinHash rh;
     std::vector<char> cur;

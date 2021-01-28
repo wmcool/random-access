@@ -10,7 +10,7 @@
 
 int compute_sample_num(std::ifstream& in, int ns, double d);
 
-std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c);
+std::vector<std::vector<bool>> extract_chunks(std::ifstream& in, int ns, int c, int& tail);
 
 double** estimate_correlation_matrix(const std::vector<std::vector<bool>>& chunks);
 

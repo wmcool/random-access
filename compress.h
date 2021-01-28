@@ -7,6 +7,8 @@
 
 void permute(std::vector<bool>& chunk, std::vector<int> I);
 
+void unpermute(std::vector<bool>& chunk, std::vector<int> I);
+
 int rabin_hash(std::vector<bool>& base);
 
 std::vector<bool> elias_gamma(int l);
