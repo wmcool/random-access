@@ -12,19 +12,20 @@ using namespace std;
 int main(int argc, char *argv[]) {
     cmdline::parser parser;
     parser.add<string>("action", 'a', "compress of decompress", true, "",
-                       cmdline::oneof<string>("compress", "decompress"));
+                       cmdline::oneof<string>("compress", "decompress", "access"));
     parser.add<string>("target", 't', "file or directory", true, "",
-            cmdline::oneof<string>("file", "directory"));
+            cmdline::oneof<string>("file", "directory", "chunk", "bit"));
     parser.add<string>("name", 'n', "file or directory name", true, "");
+    parser.add<int>("order", 'o', "the order of chunk or bit in the original file", false, 0);
     parser.add<int>("ns", 's', "bits per sample", false, 32);
     parser.add<double>("ratio", 'd', "overlap ratio", false, 0.01);
     parser.parse_check(argc, argv);
     string action = parser.get<string>("action");
     string target = parser.get<string>("target");
     string name = parser.get<string>("name");
-    int ns = parser.get<int>("ns");
-    double d = parser.get<double>("ratio");
     if(action == "compress") {
+        int ns = parser.get<int>("ns");
+        double d = parser.get<double>("ratio");
         if(target == "file") {
             ofstream out(name + ".rac", ios::out | ios::binary);
 
@@ -144,6 +145,87 @@ int main(int argc, char *argv[]) {
             out.close();
         }else if(target == "directory") {
             // TODO
+        }
+    }else if(action == "access") {
+        int order = parser.get<int>("order");
+
+        // restore param
+        ifstream in_param(name + ".par", ios::in | ios::binary);
+        in_param.seekg(0, ios::end);
+        int size_param = in_param.tellg();
+        in_param.seekg(0, ios::beg);
+        int ns = read_elias_gamma(in_param);
+        int c = read_elias_gamma(in_param);
+        int n = c*ns;
+        int tail = read_elias_gamma(in_param) - 1;
+        vector<int> move_from;
+        while(in_param.tellg() != size_param) move_from.push_back(read_elias_gamma(in_param) - 1);
+        int k = move_from.size();
+        in_param.close();
+
+        if(target == "chunk") {
+            ifstream in(name + ".rac", ios::in | ios::binary);
+            int l = read_elias_gamma(in);
+            int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
+            in.seekg(order * compressed_chunk_size, ios::cur);
+            int base_id = binary_to_int(read_binary(in, l));
+
+            ifstream in_dic(name + ".dic", ios::in | ios::binary);
+            int origin_base_size = ceil((double)(n - k)/8);
+            in_dic.seekg(base_id * origin_base_size, ios::beg);
+            vector<bool> base = read_binary(in_dic, n-k);
+            vector<bool> deviation = read_binary(in, k);
+            base.insert(base.end(), deviation.begin(), deviation.end());
+            unpermute(base, move_from);
+            cout << "chunk " << order << ": ";
+            for(int i=0;i<base.size();i++) {
+                cout << (int)base[i] << " ";
+            }
+            cout << endl;
+            in.close();
+            in_dic.close();
+        }else if(target == "bit") {
+            int order_in_chunk = order % n;
+            int chunk_id = order_in_chunk / n;
+            int j = -1;
+            int padding_size = 0;
+            for(int i=0;i<move_from.size();i++) {
+                if(move_from[i] == order_in_chunk) {
+                    j = i;
+                    break;
+                }
+                if(move_from[i] < order_in_chunk) {
+                    padding_size = k - i;
+                    break;
+                }
+
+            }
+            if(j != -1) { // deviation
+                ifstream in(name + ".rac", ios::in | ios::binary);
+                int l = read_elias_gamma(in);
+                int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
+                in.seekg((chunk_id + 1) * compressed_chunk_size, ios::cur);
+                in.seekg(((j - k + 1) / 8) - 1, ios::cur);
+                vector<bool> bits = read_binary(in, 8);
+                cout << "bit " << order << ":" << bits[j%8] << endl;
+                in.close();
+            }else { // base
+                ifstream in(name + ".rac", ios::in | ios::binary);
+                int l = read_elias_gamma(in);
+                int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
+                in.seekg(chunk_id * compressed_chunk_size, ios::beg);
+                int base_id = binary_to_int(read_binary(in, l));
+                in.close();
+
+                ifstream in_dic(name + ".dic", ios::in | ios::binary);
+                int origin_base_size = ceil((double)(n - k)/8);
+                in_dic.seekg(base_id * origin_base_size, ios::beg);
+                int base_order = order_in_chunk - padding_size;
+                in_dic.seekg(base_order / 8, ios::cur);
+                vector<bool> bits = read_binary(in_dic, 8);
+                cout << "bit " << order << ":" << bits[base_order % 8] << endl;
+                in_dic.close();
+            }
         }
     }
     return 0;
