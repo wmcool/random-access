@@ -19,4 +19,6 @@ int binary_to_int(std::vector<bool> binary);
 
 int read_elias_gamma(std::ifstream& in);
 
+void read_all_files(std::vector<std::string>& files, std::string dir_name);
+
 #endif //RANDOM_ACCESS_UTILS_H

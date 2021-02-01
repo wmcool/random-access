@@ -6,6 +6,7 @@
 #include <fstream>
 #include <ostream>
 #include <vector>
+#include <dirent.h>
 
 void convert_binary(const std::string& input, const std::string& output) {
     std::ifstream in(input);
@@ -92,4 +93,19 @@ std::vector<bool> read_binary(std::ifstream& in, int length) {
         if(length == 0) break;
     }
     return binary;
+}
+
+void read_all_files(std::vector<std::string>& files, std::string dir_name) {
+    DIR *dpdf;
+    struct dirent *epdf;
+
+    dpdf = opendir(dir_name.data());
+    if (dpdf != nullptr){
+        while (epdf = readdir(dpdf)){
+            if (!epdf->d_name || epdf->d_name[0] == '.')
+                continue;
+            files.emplace_back(epdf->d_name);
+        }
+    }
+    closedir(dpdf);
 }
