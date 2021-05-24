@@ -1,4 +1,4 @@
-#include "cmdline.h"
+#include "include/cmdline.h"
 #include "preprocess.h"
 #include <iostream>
 #include "compress.h"
@@ -14,20 +14,25 @@ int main(int argc, char *argv[]) {
     cmdline::parser parser;
     parser.add<string>("action", 'a', "compress of decompress", true, "",
                        cmdline::oneof<string>("compress", "decompress", "access", "convert"));
-    parser.add<string>("target", 't', "file or directory", true, "",
+    parser.add<string>("target", 't', "file or directory", false, "",
             cmdline::oneof<string>("file", "directory", "chunk", "bit"));
     parser.add<string>("name", 'n', "file or directory name", true, "");
     parser.add<int>("order", '\0', "the order of chunk or bit in the original file", false, 0);
     parser.add<string>("output", 'o', "output file or directory name", false, "");
     parser.add<int>("ns", 's', "bits per sample", false, 32);
     parser.add<double>("ratio", 'd', "overlap ratio", false, 0.01);
+    parser.add<string>("dictionary", '\0', "dictionary file name", false, "");
+    parser.add<string>("parameter", '\0', "parameter file name", false, "");
     parser.parse_check(argc, argv);
     string action = parser.get<string>("action");
     string target = parser.get<string>("target");
     string name = parser.get<string>("name");
     if(action == "convert") {
-        string output_name = parser.get<string>("output");
-        convert_binary(name, output_name);
+        vector<string> files;
+        read_all_files(files, name);
+        for(string file_name : files) {
+            convert_binary(name + "/" + file_name, name + "/" + file_name.substr(0, 6));
+        }
     }
     if(action == "compress") {
         int ns = parser.get<int>("ns");
@@ -39,19 +44,31 @@ int main(int argc, char *argv[]) {
             ifstream in(name, ios::in | ios::binary);
             int c = compute_sample_num(in, ns, d);
             cout << "c: " << c << endl;
-            int tail = 0;
+            int tail = 0; // zero padding bytes used to recover the last chunk
             vector<vector<bool>> chunks = extract_chunks(in, ns, c, tail);
             double** correlation_matrix = estimate_correlation_matrix(chunks);
+
+//            for(int i=0;i<chunks[0].size();i++) {
+//                for(int j=0;j<chunks[0].size();j++) {
+//                    cout << correlation_matrix[i][j] << " ";
+//                }
+//                cout << endl;
+//            }
             double* correlation_array = get_mean_correlation(correlation_matrix, chunks[0].size());
+//            for(int i=0;i<chunks[0].size();i++) {
+//                cout << correlation_array[i] << " ";
+//            }
+//            cout << endl;
+
             int* indexs = sort_bits_of_chunks(chunks, correlation_array);
             int k = compute_deviation_bits_num(chunks);
             cout << "deviation bits num: " << k << endl;
             vector<int> move_from = compute_move_index_set(indexs, k, chunks[0].size());
-            cout << "deviation index: ";
-            for(int i=0; i < move_from.size(); i++) {
-                cout << move_from[i] << " ";
-            }
-            cout << endl;
+//            cout << "deviation index: ";
+//            for(int i=0; i < move_from.size(); i++) {
+//                cout << move_from[i] << " ";
+//            }
+//            cout << endl;
 
             // write params to file
             ofstream out_param(name + ".par", ios::out | ios::binary);
@@ -112,20 +129,20 @@ int main(int argc, char *argv[]) {
             // preprocess
             ifstream in_pre(name + "/" + files[0], ios::in | ios::binary);
             int c = compute_sample_num(in_pre, ns, d);
-            cout << "c: " << c << endl;
+//            cout << "c: " << c << endl;
             int tail = 0;
             vector<vector<bool>> chunks = extract_chunks(in_pre, ns, c, tail);
             double** correlation_matrix = estimate_correlation_matrix(chunks);
             double* correlation_array = get_mean_correlation(correlation_matrix, chunks[0].size());
             int* indexs = sort_bits_of_chunks(chunks, correlation_array);
             int k = compute_deviation_bits_num(chunks);
-            cout << "deviation bits num: " << k << endl;
+//            cout << "deviation bits num: " << k << endl;
             vector<int> move_from = compute_move_index_set(indexs, k, chunks[0].size());
-            cout << "deviation index: ";
-            for(int i=0; i < move_from.size(); i++) {
-                cout << move_from[i] << " ";
-            }
-            cout << endl;
+//            cout << "deviation index: ";
+//            for(int i=0; i < move_from.size(); i++) {
+//                cout << move_from[i] << " ";
+//            }
+//            cout << endl;
             in_pre.close();
 
             // write params to file
@@ -203,7 +220,8 @@ int main(int argc, char *argv[]) {
 
             // decompressing files
             ifstream in(name + ".rac", ios::in | ios::binary);
-            ofstream  out(name + ".dec", ios::out | ios::binary);
+            string output_name = parser.get<string>("output");
+            ofstream  out(output_name, ios::out | ios::binary);
             in.seekg(0, ios::end);
             int size = in.tellg();
             in.seekg(0, ios::beg);
@@ -296,8 +314,10 @@ int main(int argc, char *argv[]) {
     }else if(action == "access") {
         int order = parser.get<int>("order");
 
+        string par_name = parser.get<string>("parameter");
+        if(par_name.empty()) par_name = name + ".par";
         // restore param
-        ifstream in_param(name + ".par", ios::in | ios::binary);
+        ifstream in_param(par_name, ios::in | ios::binary);
         in_param.seekg(0, ios::end);
         int size_param = in_param.tellg();
         in_param.seekg(0, ios::beg);
@@ -309,6 +329,9 @@ int main(int argc, char *argv[]) {
         int k = move_from.size();
         in_param.close();
 
+        string dic_name = parser.get<string>("dictionary");
+        if(dic_name.empty()) dic_name = name + ".dic";
+
         if(target == "chunk") {
             ifstream in(name + ".rac", ios::in | ios::binary);
             int tail = read_elias_gamma(in) - 1;
@@ -317,7 +340,7 @@ int main(int argc, char *argv[]) {
             in.seekg(order * compressed_chunk_size, ios::cur);
             int base_id = binary_to_int(read_binary(in, l));
 
-            ifstream in_dic(name + ".dic", ios::in | ios::binary);
+            ifstream in_dic(dic_name, ios::in | ios::binary);
             int origin_base_size = ceil((double)(n - k)/8);
             in_dic.seekg(base_id * origin_base_size, ios::beg);
             vector<bool> base = read_binary(in_dic, n-k);
@@ -362,11 +385,11 @@ int main(int argc, char *argv[]) {
                 int tail = read_elias_gamma(in) - 1;
                 int l = read_elias_gamma(in);
                 int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
-                in.seekg(chunk_id * compressed_chunk_size, ios::beg);
+                in.seekg(chunk_id * compressed_chunk_size, ios::cur);
                 int base_id = binary_to_int(read_binary(in, l));
                 in.close();
 
-                ifstream in_dic(name + ".dic", ios::in | ios::binary);
+                ifstream in_dic(dic_name, ios::in | ios::binary);
                 int origin_base_size = ceil((double)(n - k)/8);
                 in_dic.seekg(base_id * origin_base_size, ios::beg);
                 int base_order = order_in_chunk - padding_size;

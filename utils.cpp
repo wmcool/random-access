@@ -11,9 +11,9 @@
 void convert_binary(const std::string& input, const std::string& output) {
     std::ifstream in(input);
     std::ofstream out(output, std::ios::out | std::ios::binary);
-    int cur;
+    float cur;
     while(in >> cur) {
-        out.write((char*)&cur, sizeof(int));
+        out.write((char*)&cur, sizeof(float));
     }
     in.close();
     out.close();
