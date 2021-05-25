@@ -7,6 +7,7 @@
 #include <cmath>
 #include <ostream>
 #include <sys/stat.h>
+#include "time.h"
 
 using namespace std;
 
@@ -27,6 +28,7 @@ int main(int argc, char *argv[]) {
     string action = parser.get<string>("action");
     string target = parser.get<string>("target");
     string name = parser.get<string>("name");
+    clock_t start,end;
     if(action == "convert") {
         vector<string> files;
         read_all_files(files, name);
@@ -43,6 +45,7 @@ int main(int argc, char *argv[]) {
             // preprocess
             ifstream in(name, ios::in | ios::binary);
             int c = compute_sample_num(in, ns, d);
+//            int c = 1;
             cout << "c: " << c << endl;
             int tail = 0; // zero padding bytes used to recover the last chunk
             vector<vector<bool>> chunks = extract_chunks(in, ns, c, tail);
@@ -62,6 +65,7 @@ int main(int argc, char *argv[]) {
 
             int* indexs = sort_bits_of_chunks(chunks, correlation_array);
             int k = compute_deviation_bits_num(chunks);
+//            int k = 0;
             cout << "deviation bits num: " << k << endl;
             vector<int> move_from = compute_move_index_set(indexs, k, chunks[0].size());
 //            cout << "deviation index: ";
@@ -129,14 +133,16 @@ int main(int argc, char *argv[]) {
             // preprocess
             ifstream in_pre(name + "/" + files[0], ios::in | ios::binary);
             int c = compute_sample_num(in_pre, ns, d);
-//            cout << "c: " << c << endl;
+//            int c = 7;
+            cout << "c: " << c << endl;
             int tail = 0;
             vector<vector<bool>> chunks = extract_chunks(in_pre, ns, c, tail);
             double** correlation_matrix = estimate_correlation_matrix(chunks);
             double* correlation_array = get_mean_correlation(correlation_matrix, chunks[0].size());
             int* indexs = sort_bits_of_chunks(chunks, correlation_array);
             int k = compute_deviation_bits_num(chunks);
-//            cout << "deviation bits num: " << k << endl;
+//            int k = 180;
+            cout << "deviation bits num: " << k << endl;
             vector<int> move_from = compute_move_index_set(indexs, k, chunks[0].size());
 //            cout << "deviation index: ";
 //            for(int i=0; i < move_from.size(); i++) {
@@ -320,6 +326,7 @@ int main(int argc, char *argv[]) {
         ifstream in_param(par_name, ios::in | ios::binary);
         in_param.seekg(0, ios::end);
         int size_param = in_param.tellg();
+        cout << "accessed param: " << size_param << "bits" << endl;
         in_param.seekg(0, ios::beg);
         int ns = read_elias_gamma(in_param);
         int c = read_elias_gamma(in_param);
@@ -328,23 +335,28 @@ int main(int argc, char *argv[]) {
         while(in_param.tellg() != size_param) move_from.push_back(read_elias_gamma(in_param) - 1);
         int k = move_from.size();
         in_param.close();
-
         string dic_name = parser.get<string>("dictionary");
         if(dic_name.empty()) dic_name = name + ".dic";
 
+        start = clock();
+        int accessed_bits = 0;
         if(target == "chunk") {
-            ifstream in(name + ".rac", ios::in | ios::binary);
+            ifstream in(name, ios::in | ios::binary);
             int tail = read_elias_gamma(in) - 1;
+            accessed_bits += 2*std::floor(std::log2(tail+1))+1;
             int l = read_elias_gamma(in);
+            accessed_bits += 2*std::floor(std::log2(l))+1;
             int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
             in.seekg(order * compressed_chunk_size, ios::cur);
             int base_id = binary_to_int(read_binary(in, l));
+            accessed_bits += l;
 
             ifstream in_dic(dic_name, ios::in | ios::binary);
             int origin_base_size = ceil((double)(n - k)/8);
             in_dic.seekg(base_id * origin_base_size, ios::beg);
             vector<bool> base = read_binary(in_dic, n-k);
             vector<bool> deviation = read_binary(in, k);
+            accessed_bits += n;
             base.insert(base.end(), deviation.begin(), deviation.end());
             unpermute(base, move_from);
             cout << "chunk " << order << ": ";
@@ -373,20 +385,26 @@ int main(int argc, char *argv[]) {
             if(j != -1) { // deviation
                 ifstream in(name + ".rac", ios::in | ios::binary);
                 int tail = read_elias_gamma(in) - 1;
+                accessed_bits += 2*std::floor(std::log2(tail+1))+1;
                 int l = read_elias_gamma(in);
+                accessed_bits += 2*std::floor(std::log2(l))+1;
                 int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
                 in.seekg((chunk_id + 1) * compressed_chunk_size, ios::cur);
                 in.seekg(((j - k + 1) / 8) - 1, ios::cur);
                 vector<bool> bits = read_binary(in, 8);
+                accessed_bits += 1;
                 cout << "bit " << order << ":" << bits[j%8] << endl;
                 in.close();
             }else { // base
-                ifstream in(name + ".rac", ios::in | ios::binary);
+                ifstream in(name, ios::in | ios::binary);
                 int tail = read_elias_gamma(in) - 1;
+                accessed_bits += 2*std::floor(std::log2(tail+1))+1;
                 int l = read_elias_gamma(in);
+                accessed_bits += 2*std::floor(std::log2(l))+1;
                 int compressed_chunk_size = (int)ceil((double)l / 8) + (int)ceil((double)k / 8);
                 in.seekg(chunk_id * compressed_chunk_size, ios::cur);
                 int base_id = binary_to_int(read_binary(in, l));
+                accessed_bits += l;
                 in.close();
 
                 ifstream in_dic(dic_name, ios::in | ios::binary);
@@ -399,6 +417,7 @@ int main(int argc, char *argv[]) {
                 in_dic.close();
             }
         }
+        cout << "accessed bits: " << accessed_bits << endl;
     }
     return 0;
 }
